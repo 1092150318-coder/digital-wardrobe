@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 const PAGE_SIZE = 24
 const WATERMARK_TEXT = '风居住的街道 · 数字衣柜'
 
-/* ================= Canvas 图片渲染（核心防下载） ================= */
+/* ================= Canvas 图片渲染（防下载核心） ================= */
 function CanvasImage({ src }: { src: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -24,12 +24,11 @@ function CanvasImage({ src }: { src: string }) {
       canvas.width = img.width
       canvas.height = img.height
 
-      // 绘制图片
       ctx.drawImage(img, 0, 0)
 
-      // 动态水印（截图可识别）
-      const angle = (-20 + Math.random() * 10) * (Math.PI / 180)
-      ctx.rotate(angle)
+      // 动态水印（截图可追溯）
+      ctx.save()
+      ctx.rotate((-20 * Math.PI) / 180)
       ctx.font = '22px sans-serif'
       ctx.fillStyle = 'rgba(255,255,255,0.1)'
 
@@ -38,8 +37,7 @@ function CanvasImage({ src }: { src: string }) {
           ctx.fillText(WATERMARK_TEXT, x, y)
         }
       }
-
-      ctx.rotate(-angle)
+      ctx.restore()
     }
   }, [src])
 
@@ -48,10 +46,26 @@ function CanvasImage({ src }: { src: string }) {
       ref={canvasRef}
       style={{
         width: '100%',
-        height: 'auto',
         display: 'block',
         userSelect: 'none',
         pointerEvents: 'none',
+      }}
+    />
+  )
+}
+
+/* ================= 骨架占位 ================= */
+function Skeleton() {
+  return (
+    <div
+      style={{
+        width: '100%',
+        paddingBottom: '130%',
+        background:
+          'linear-gradient(90deg, #222 25%, #333 37%, #222 63%)',
+        backgroundSize: '400% 100%',
+        animation: 'skeleton 1.4s ease infinite',
+        borderRadius: 12,
       }}
     />
   )
@@ -62,9 +76,10 @@ export default function Gallery() {
   const [images, setImages] = useState<string[]>([])
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc')
+
   const loaderRef = useRef<HTMLDivElement>(null)
 
-  /* 拉取一页图片 */
   const loadImages = useCallback(async () => {
     if (loading) return
     setLoading(true)
@@ -74,7 +89,7 @@ export default function Gallery() {
       .list('', {
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
-        sortBy: { column: 'name', order: 'asc' },
+        sortBy: { column: 'created_at', order },
       })
 
     if (!error && data) {
@@ -85,23 +100,27 @@ export default function Gallery() {
         )
 
       setImages(prev => [...prev, ...urls])
-      setPage(prev => prev + 1)
+      setPage(p => p + 1)
     }
 
     setLoading(false)
-  }, [page, loading])
+  }, [page, order, loading])
 
-  /* 首次加载 */
+  /* 顺序切换时重置 */
+  useEffect(() => {
+    setImages([])
+    setPage(0)
+  }, [order])
+
+  /* 首次 + 顺序变更加载 */
   useEffect(() => {
     loadImages()
-  }, [])
+  }, [loadImages])
 
-  /* 懒加载监听 */
+  /* 懒加载 */
   useEffect(() => {
     const observer = new IntersectionObserver(
-      entries => {
-        if (entries[0].isIntersecting) loadImages()
-      },
+      entries => entries[0].isIntersecting && loadImages(),
       { rootMargin: '200px' }
     )
 
@@ -110,66 +129,104 @@ export default function Gallery() {
   }, [loadImages])
 
   return (
-    <div
-      onContextMenu={e => e.preventDefault()}
-      onDragStart={e => e.preventDefault()}
-      onSelect={e => e.preventDefault()}
-      style={{
-        padding: '24px',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-        gap: '18px',
-      }}
-    >
-      {images.map((src, i) => (
-        <div
-          key={i}
+    <>
+      {/* 时间顺序切换 */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          marginBottom: 20,
+          gap: 12,
+        }}
+      >
+        <button
+          onClick={() => setOrder('desc')}
           style={{
-            position: 'relative',
-            overflow: 'hidden',
-            borderRadius: '14px',
-            background: '#000',
+            padding: '6px 14px',
+            borderRadius: 20,
+            background: order === 'desc' ? '#fff' : '#333',
+            color: order === 'desc' ? '#000' : '#aaa',
+            border: 'none',
+            cursor: 'pointer',
           }}
         >
-          <CanvasImage src={src} />
+          最新
+        </button>
+        <button
+          onClick={() => setOrder('asc')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: 20,
+            background: order === 'asc' ? '#fff' : '#333',
+            color: order === 'asc' ? '#000' : '#aaa',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          最早
+        </button>
+      </div>
 
-          {/* 防操作遮罩 */}
+      {/* 图片网格 */}
+      <div
+        onContextMenu={e => e.preventDefault()}
+        onDragStart={e => e.preventDefault()}
+        onSelect={e => e.preventDefault()}
+        style={{
+          padding: 24,
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+          gap: 18,
+        }}
+      >
+        {images.map((src, i) => (
           <div
+            key={i}
             style={{
-              position: 'absolute',
-              inset: 0,
-              zIndex: 2,
-            }}
-          />
-
-          {/* 可视水印（弱存在感） */}
-          <span
-            style={{
-              position: 'absolute',
-              right: 8,
-              bottom: 8,
-              fontSize: 12,
-              color: 'rgba(255,255,255,0.7)',
-              background: 'rgba(0,0,0,0.4)',
-              padding: '3px 8px',
-              borderRadius: 6,
-              zIndex: 3,
-              pointerEvents: 'none',
+              position: 'relative',
+              borderRadius: 14,
+              overflow: 'hidden',
+              background: '#000',
             }}
           >
-            风居住的街道
-          </span>
-        </div>
-      ))}
+            <CanvasImage src={src} />
 
-      {/* 懒加载触发器 */}
-      <div ref={loaderRef} style={{ height: 1 }} />
+            <span
+              style={{
+                position: 'absolute',
+                right: 8,
+                bottom: 8,
+                fontSize: 12,
+                color: 'rgba(255,255,255,0.7)',
+                background: 'rgba(0,0,0,0.4)',
+                padding: '3px 8px',
+                borderRadius: 6,
+                pointerEvents: 'none',
+              }}
+            >
+              风居住的街道
+            </span>
+          </div>
+        ))}
 
-      {loading && (
-        <div style={{ gridColumn: '1 / -1', textAlign: 'center', opacity: 0.6 }}>
-          加载中…
-        </div>
-      )}
-    </div>
+        {/* Skeleton */}
+        {loading &&
+          Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} />)}
+
+        <div ref={loaderRef} style={{ height: 1 }} />
+      </div>
+
+      {/* Skeleton 动画 */}
+      <style jsx>{`
+        @keyframes skeleton {
+          0% {
+            background-position: 100% 0;
+          }
+          100% {
+            background-position: -100% 0;
+          }
+        }
+      `}</style>
+    </>
   )
 }
