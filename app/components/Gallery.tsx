@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase } from '@/lib/supabase'
 
 function CanvasImage({ src }: { src: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
