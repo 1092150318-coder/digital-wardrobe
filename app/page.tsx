@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import Gallery from './components/Gallery'
 
 export default function HomePage() {
