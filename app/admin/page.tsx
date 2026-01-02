@@ -1,5 +1,5 @@
 'use client'
-import { supabase } from '../../lib/supabase'
+import { supabaseA } from '@/lib/supabaseClients'
 
 export default function AdminPage() {
   async function upload(e: any) {
