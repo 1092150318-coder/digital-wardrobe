@@ -1,13 +1,12 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-
-import { supabaseA } from '@/lib/supabaseClients'
-
 export default function AdminPage() {
   async function upload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files
     if (!files) return
+
+    // ⚠️ 只在浏览器事件里再 import
+    const { supabaseA } = await import('@/lib/supabaseClients')
 
     for (const file of Array.from(files)) {
       const fileName = `${Date.now()}-${file.name}`
