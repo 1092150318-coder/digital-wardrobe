@@ -70,8 +70,6 @@ function CanvasImage({ src }: { src: string }) {
 const SOURCES = [
   { client: supabaseA, label: 'A' }, // 旧：107 张，只读
   { client: supabaseB, label: 'B' }, // 新
-  { client: supabaseC, label: 'C' }, // 新
-]
 
 /* ================= 主 Gallery ================= */
 export default function Gallery() {
