@@ -3,6 +3,20 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabaseA, supabaseB, supabaseC } from '@/lib/supabaseClients'
 
+function Skeleton() {
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: 240,
+        borderRadius: 12,
+        background: 'linear-gradient(90deg, #eee, #f5f5f5, #eee)',
+        animation: 'pulse 1.5s infinite'
+      }}
+    />
+  )
+}
+
 const PAGE_SIZE = 24
 const WATERMARK_TEXT = '风居住的街道 · 数字衣柜'
 

@@ -1,13 +1,18 @@
 'use client'
+
+export const dynamic = 'force-dynamic'
+
 import { supabaseA } from '@/lib/supabaseClients'
 
 export default function AdminPage() {
-  async function upload(e: any) {
+  async function upload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files
-    for (const file of files) {
+    if (!files) return
+
+    for (const file of Array.from(files)) {
       const fileName = `${Date.now()}-${file.name}`
-      await supabase.storage.from('images').upload(fileName, file)
-      await supabase.from('images').insert({ path: fileName })
+      await supabaseA.storage.from('images').upload(fileName, file)
+      await supabaseA.from('images').insert({ path: fileName })
     }
   }
 
