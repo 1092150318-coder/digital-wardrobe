@@ -6,7 +6,7 @@ import { SUPABASE_SOURCES } from '@/lib/supabaseClients'
 const WATERMARK_TEXT = '风居住的街道 · 数字衣柜'
 const FIRST_SCREEN_COUNT = 24
 
-/* ================= 工具：缩略图（强制不裁） ================= */
+/* ================= 工具：缩略图（不裁） ================= */
 function getThumb(url: string) {
   return (
     url.replace(
@@ -146,10 +146,39 @@ export default function Gallery() {
     async function load() {
       const all: { url: string; time: number }[] = []
 
-      for (const src of SUPABASE_SOURCES) {
-        if (!src.client) continue
-        for (const bucket of src.buckets) {
-          all.push(...(await listImages(src.client, bucket)))
+      // 第 1 个账号
+      if (SUPABASE_SOURCES[0]?.client) {
+        for (const bucket of SUPABASE_SOURCES[0].buckets) {
+          all.push(
+            ...(await listImages(SUPABASE_SOURCES[0].client, bucket))
+          )
+        }
+      }
+
+      // 第 2 个账号
+      if (SUPABASE_SOURCES[1]?.client) {
+        for (const bucket of SUPABASE_SOURCES[1].buckets) {
+          all.push(
+            ...(await listImages(SUPABASE_SOURCES[1].client, bucket))
+          )
+        }
+      }
+
+      // 第 3 个账号：bucket 4 / 5 / 6
+      if (SUPABASE_SOURCES[2]?.client) {
+        for (const bucket of ['4', '5', '6']) {
+          all.push(
+            ...(await listImages(SUPABASE_SOURCES[2].client, bucket))
+          )
+        }
+      }
+
+      // 第 4 个账号：bucket 7 / 8 / 9
+      if (SUPABASE_SOURCES[3]?.client) {
+        for (const bucket of ['7', '8', '9']) {
+          all.push(
+            ...(await listImages(SUPABASE_SOURCES[3].client, bucket))
+          )
         }
       }
 
@@ -175,11 +204,8 @@ export default function Gallery() {
         style={{
           padding: 12,
           display: 'grid',
-
-          /* ✅ 关键：列可以多，但永远不会压成细条 */
           gridTemplateColumns:
             'repeat(auto-fill, minmax(180px, 1fr))',
-
           gap: 12,
         }}
       >
@@ -189,7 +215,7 @@ export default function Gallery() {
             onClick={() => setActive(img.url)}
             style={{
               width: '100%',
-              aspectRatio: '2 / 3', // ✅ 统一立绘比例
+              aspectRatio: '2 / 3',
               borderRadius: 12,
               background: '#fff',
               overflow: 'hidden',
@@ -203,7 +229,7 @@ export default function Gallery() {
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'contain', // ❗永不裁
+                objectFit: 'contain',
                 display: 'block',
                 userSelect: 'none',
                 pointerEvents: 'none',
