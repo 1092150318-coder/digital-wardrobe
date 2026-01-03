@@ -1,18 +1,36 @@
-console.log('SUPA1_URL', process.env.NEXT_PUBLIC_SUPABASE_1_URL)
-console.log('SUPA1_KEY', process.env.NEXT_PUBLIC_SUPABASE_1_ANON_KEY)
-console.log('SUPA2_URL', process.env.NEXT_PUBLIC_SUPABASE_2_URL)
-console.log('SUPA2_KEY', process.env.NEXT_PUBLIC_SUPABASE_2_ANON_KEY)
+ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-import { createClient } from '@supabase/supabase-js'
+function safeCreateClient(
+  url?: string,
+  key?: string
+): SupabaseClient | null {
+  if (!url || !key) return null
+  return createClient(url, key)
+}
 
-const supabaseUrl1 = process.env.NEXT_PUBLIC_SUPABASE_1_URL!
-const supabaseKey1 = process.env.NEXT_PUBLIC_SUPABASE_1_ANON_KEY!
+export const supabaseA = safeCreateClient(
+  process.env.NEXT_PUBLIC_SUPABASE_1_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_1_ANON_KEY
+)
 
-const supabaseUrl2 = process.env.NEXT_PUBLIC_SUPABASE_2_URL!
-const supabaseKey2 = process.env.NEXT_PUBLIC_SUPABASE_2_ANON_KEY!
+export const supabaseB = safeCreateClient(
+  process.env.NEXT_PUBLIC_SUPABASE_2_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_2_ANON_KEY
+)
 
-export const supabaseA = createClient(supabaseUrl1, supabaseKey1)
-export const supabaseB = createClient(supabaseUrl2, supabaseKey2)
+export const supabaseC = safeCreateClient(
+  process.env.NEXT_PUBLIC_SUPABASE_3_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_3_ANON_KEY
+)
 
-// 如果你暂时没第三个，一定要这样👇
-export const supabaseC = null as any
+export const supabaseD = safeCreateClient(
+  process.env.NEXT_PUBLIC_SUPABASE_4_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_4_ANON_KEY
+)
+
+export const SUPABASE_SOURCES = [
+  { client: supabaseA, buckets: ['wardrobe'] },
+  { client: supabaseB, buckets: ['1', '2', '3'] },
+  { client: supabaseC, buckets: ['1', '2', '3'] },
+  { client: supabaseD, buckets: ['1', '2', '3'] },
+]

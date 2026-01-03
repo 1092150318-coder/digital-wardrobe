@@ -1,13 +1,24 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { supabaseA, supabaseB } from '@/lib/supabaseClients'
+import { SUPABASE_SOURCES } from '@/lib/supabaseClients'
 
 const WATERMARK_TEXT = '风居住的街道 · 数字衣柜'
+const FIRST_SCREEN_COUNT = 24
 
-/* ================= Canvas 水印 ================= */
-function CanvasImage({ src }: { src: string }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+/* ================= 工具：缩略图（强制不裁） ================= */
+function getThumb(url: string) {
+  return (
+    url.replace(
+      '/storage/v1/object/public/',
+      '/storage/v1/render/image/public/'
+    ) + '?width=480&quality=60&resize=contain'
+  )
+}
+
+/* ================= Canvas 原图（水印 + 等比） ================= */
+function WatermarkCanvas({ src }: { src: string }) {
+  const ref = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
     const img = new Image()
@@ -15,22 +26,29 @@ function CanvasImage({ src }: { src: string }) {
     img.src = src
 
     img.onload = () => {
-      const canvas = canvasRef.current
+      const canvas = ref.current
       if (!canvas) return
       const ctx = canvas.getContext('2d')
       if (!ctx) return
 
-      canvas.width = img.width
-      canvas.height = img.height
-      ctx.drawImage(img, 0, 0)
+      const maxW = window.innerWidth * 0.95
+      const maxH = window.innerHeight * 0.95
+      const scale = Math.min(maxW / img.width, maxH / img.height, 1)
+
+      const w = img.width * scale
+      const h = img.height * scale
+
+      canvas.width = w
+      canvas.height = h
+      ctx.drawImage(img, 0, 0, w, h)
 
       ctx.save()
       ctx.rotate((-20 * Math.PI) / 180)
-      ctx.font = '22px sans-serif'
-      ctx.fillStyle = 'rgba(255,255,255,0.1)'
+      ctx.font = '24px sans-serif'
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'
 
-      for (let y = -canvas.height; y < canvas.height * 2; y += 140) {
-        for (let x = -canvas.width; x < canvas.width * 2; x += 360) {
+      for (let y = -h; y < h * 2; y += 160) {
+        for (let x = -w; x < w * 2; x += 420) {
           ctx.fillText(WATERMARK_TEXT, x, y)
         }
       }
@@ -40,39 +58,73 @@ function CanvasImage({ src }: { src: string }) {
 
   return (
     <canvas
-      ref={canvasRef}
-      style={{ width: '100%', display: 'block', pointerEvents: 'none' }}
+      ref={ref}
+      style={{
+        maxWidth: '100%',
+        maxHeight: '100%',
+        display: 'block',
+        margin: '0 auto',
+        pointerEvents: 'none',
+      }}
     />
   )
 }
 
-/* ================= 递归读取 bucket ================= */
-async function listAllImages(
-  client: any,
-  bucket: string
-): Promise<string[]> {
-  if (!client) return []
+/* ================= 原图 Modal ================= */
+function ImageModal({
+  src,
+  onClose,
+}: {
+  src: string
+  onClose: () => void
+}) {
+  return (
+    <div
+      onClick={onClose}
+      onContextMenu={e => e.preventDefault()}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.9)',
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 12,
+      }}
+    >
+      <WatermarkCanvas src={src} />
+    </div>
+  )
+}
 
-  const LIMIT = 100
+/* ================= 读取 bucket ================= */
+async function listImages(client: any, bucket: string) {
+  const results: { url: string; time: number }[] = []
   let offset = 0
-  const results: string[] = []
+  const LIMIT = 100
 
   while (true) {
-    const { data, error } = await client.storage.from(bucket).list('', {
+    const { data } = await client.storage.from(bucket).list('', {
       limit: LIMIT,
       offset,
-      sortBy: { column: 'name', order: 'asc' },
+      sortBy: { column: 'created_at', order: 'desc' },
     })
 
-    if (error || !data || data.length === 0) break
+    if (!data || data.length === 0) break
 
-    for (const item of data) {
-      if (/\.(png|jpg|jpeg|webp)$/i.test(item.name)) {
+    for (const file of data) {
+      if (/\.(jpg|jpeg|png|webp)$/i.test(file.name)) {
         const { data: url } = client.storage
           .from(bucket)
-          .getPublicUrl(item.name)
+          .getPublicUrl(file.name)
 
-        if (url?.publicUrl) results.push(url.publicUrl)
+        if (url?.publicUrl) {
+          results.push({
+            url: url.publicUrl,
+            time: new Date(file.created_at).getTime(),
+          })
+        }
       }
     }
 
@@ -82,60 +134,81 @@ async function listAllImages(
 
   return results
 }
+
 /* ================= 主 Gallery ================= */
 export default function Gallery() {
-  const [images, setImages] = useState<string[]>([])
-  const [order, setOrder] = useState<'asc' | 'desc'>('desc')
+  const [images, setImages] = useState<
+    { url: string; time: number }[]
+  >([])
+  const [active, setActive] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
-      console.log('supabaseA:', supabaseA)
-      console.log('supabaseB:', supabaseB)
+      const all: { url: string; time: number }[] = []
 
-      const all: string[] = []
-
-      // 老账号
-      if (supabaseA) {
-        console.log('loading supabaseA')
-        all.push(...(await listAllImages(supabaseA, 'wardrobe')))
+      for (const src of SUPABASE_SOURCES) {
+        if (!src.client) continue
+        for (const bucket of src.buckets) {
+          all.push(...(await listImages(src.client, bucket)))
+        }
       }
 
-      // 新账号（3 个桶）
-      if (supabaseB) {
-        console.log('loading supabaseB')
-        all.push(...(await listAllImages(supabaseB, '1')))
-        all.push(...(await listAllImages(supabaseB, '2')))
-        all.push(...(await listAllImages(supabaseB, '3')))
-      }
+      const unique = Array.from(
+        new Map(all.map(i => [i.url, i])).values()
+      )
 
-      console.log('total images:', all.length)
-
-      const unique = Array.from(new Set(all))
-      setImages(order === 'asc' ? unique.reverse() : unique)
+      unique.sort((a, b) => b.time - a.time)
+      setImages(unique)
     }
 
     load()
-  }, [order])
+  }, [])
 
   return (
     <>
-      <div style={{ textAlign: 'center', marginBottom: 12 }}>
-        <button onClick={() => setOrder('desc')}>最新</button>
-        <button onClick={() => setOrder('asc')}>最早</button>
-      </div>
+      {active && (
+        <ImageModal src={active} onClose={() => setActive(null)} />
+      )}
 
       <div
         onContextMenu={e => e.preventDefault()}
         style={{
-          padding: 24,
+          padding: 12,
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-          gap: 18,
+
+          /* ✅ 关键：列可以多，但永远不会压成细条 */
+          gridTemplateColumns:
+            'repeat(auto-fill, minmax(180px, 1fr))',
+
+          gap: 12,
         }}
       >
-        {images.map((src, i) => (
-          <div key={i} style={{ borderRadius: 12, overflow: 'hidden' }}>
-            <CanvasImage src={src} />
+        {images.map((img, i) => (
+          <div
+            key={i}
+            onClick={() => setActive(img.url)}
+            style={{
+              width: '100%',
+              aspectRatio: '2 / 3', // ✅ 统一立绘比例
+              borderRadius: 12,
+              background: '#fff',
+              overflow: 'hidden',
+              cursor: 'pointer',
+            }}
+          >
+            <img
+              src={getThumb(img.url)}
+              loading={i < FIRST_SCREEN_COUNT ? 'eager' : 'lazy'}
+              draggable={false}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain', // ❗永不裁
+                display: 'block',
+                userSelect: 'none',
+                pointerEvents: 'none',
+              }}
+            />
           </div>
         ))}
       </div>
