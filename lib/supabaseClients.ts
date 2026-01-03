@@ -35,9 +35,10 @@ export const SUPABASE_SOURCES = [
   { client: supabaseD, buckets: ['1', '2', '3'] },
 ]
 
-console.log('ENV CHECK', {
-  A: !!process.env.NEXT_PUBLIC_SUPABASE_1_URL,
-  B: !!process.env.NEXT_PUBLIC_SUPABASE_2_URL,
-  C: !!process.env.NEXT_PUBLIC_SUPABASE_3_URL,
-  D: !!process.env.NEXT_PUBLIC_SUPABASE_4_URL,
-})
+console.log(
+  'ENV CHECK',
+  !!process.env.NEXT_PUBLIC_SUPABASE_1_URL,
+  !!process.env.NEXT_PUBLIC_SUPABASE_2_URL,
+  !!process.env.NEXT_PUBLIC_SUPABASE_3_URL,
+  !!process.env.NEXT_PUBLIC_SUPABASE_4_URL
+)
