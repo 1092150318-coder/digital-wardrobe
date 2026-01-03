@@ -1,26 +1,11 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { supabaseA, supabaseB, supabaseC } from '@/lib/supabaseClients'
+import { useEffect, useState, useRef } from 'react'
+import { supabaseA, supabaseB } from '@/lib/supabaseClients'
 
-function Skeleton() {
-  return (
-    <div
-      style={{
-        width: '100%',
-        height: 240,
-        borderRadius: 12,
-        background: 'linear-gradient(90deg, #eee, #f5f5f5, #eee)',
-        animation: 'pulse 1.5s infinite'
-      }}
-    />
-  )
-}
-
-const PAGE_SIZE = 24
 const WATERMARK_TEXT = '风居住的街道 · 数字衣柜'
 
-/* ================= Canvas 图片渲染（防下载核心） ================= */
+/* ================= Canvas 水印 ================= */
 function CanvasImage({ src }: { src: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -56,98 +41,89 @@ function CanvasImage({ src }: { src: string }) {
   return (
     <canvas
       ref={canvasRef}
-      style={{
-        width: '100%',
-        display: 'block',
-        userSelect: 'none',
-        pointerEvents: 'none',
-      }}
+      style={{ width: '100%', display: 'block', pointerEvents: 'none' }}
     />
   )
 }
 
-/* ================= Supabase 源定义（分桶规则核心） ================= */
-const SOURCES = [
-  { client: supabaseA, label: 'A' }, // 旧：107 张，只读
-  { client: supabaseB, label: 'B' }, // 新
+/* ================= 递归读取 bucket ================= */
+async function listAllImages(
+  client: any,
+  bucket: string
+): Promise<string[]> {
+  if (!client) return []
 
-/* ================= 主 Gallery ================= */
-export default function Gallery() {
-  const [images, setImages] = useState<string[]>([])
-  const [pageMap, setPageMap] = useState<number[]>(SOURCES.map(() => 0))
-  const [loading, setLoading] = useState(false)
-  const [order, setOrder] = useState<'asc' | 'desc'>('desc')
+  const LIMIT = 100
+  let offset = 0
+  const results: string[] = []
 
-  const loaderRef = useRef<HTMLDivElement>(null)
+  while (true) {
+    const { data, error } = await client.storage.from(bucket).list('', {
+      limit: LIMIT,
+      offset,
+      sortBy: { column: 'name', order: 'asc' },
+    })
 
-  const loadImages = useCallback(async () => {
-    if (loading) return
-    setLoading(true)
+    if (error || !data || data.length === 0) break
 
-    const results: string[] = []
+    for (const item of data) {
+      if (/\.(png|jpg|jpeg|webp)$/i.test(item.name)) {
+        const { data: url } = client.storage
+          .from(bucket)
+          .getPublicUrl(item.name)
 
-    for (let i = 0; i < SOURCES.length; i++) {
-      const { client } = SOURCES[i]
-      const page = pageMap[i]
-
-      const { data } = await client.storage
-        .from('wardrobe')
-        .list('', {
-          limit: PAGE_SIZE,
-          offset: page * PAGE_SIZE,
-          sortBy: { column: 'created_at', order },
-        })
-
-      if (data) {
-        const urls = data
-          .filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f.name))
-          .map(
-            f =>
-              client.storage
-                .from('wardrobe')
-                .getPublicUrl(f.name).data.publicUrl
-          )
-
-        results.push(...urls)
+        if (url?.publicUrl) results.push(url.publicUrl)
       }
     }
 
-    setImages(prev => [...prev, ...results])
-    setPageMap(pages => pages.map(p => p + 1))
-    setLoading(false)
-  }, [pageMap, order, loading])
+    if (data.length < LIMIT) break
+    offset += LIMIT
+  }
 
-  /* 顺序切换时重置 */
+  return results
+}
+/* ================= 主 Gallery ================= */
+export default function Gallery() {
+  const [images, setImages] = useState<string[]>([])
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc')
+
   useEffect(() => {
-    setImages([])
-    setPageMap(SOURCES.map(() => 0))
+    async function load() {
+      console.log('supabaseA:', supabaseA)
+      console.log('supabaseB:', supabaseB)
+
+      const all: string[] = []
+
+      // 老账号
+      if (supabaseA) {
+        console.log('loading supabaseA')
+        all.push(...(await listAllImages(supabaseA, 'wardrobe')))
+      }
+
+      // 新账号（3 个桶）
+      if (supabaseB) {
+        console.log('loading supabaseB')
+        all.push(...(await listAllImages(supabaseB, '1')))
+        all.push(...(await listAllImages(supabaseB, '2')))
+        all.push(...(await listAllImages(supabaseB, '3')))
+      }
+
+      console.log('total images:', all.length)
+
+      const unique = Array.from(new Set(all))
+      setImages(order === 'asc' ? unique.reverse() : unique)
+    }
+
+    load()
   }, [order])
-
-  /* 首次加载 */
-  useEffect(() => {
-    loadImages()
-  }, [loadImages])
-
-  /* 懒加载 */
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      entries => entries[0].isIntersecting && loadImages(),
-      { rootMargin: '200px' }
-    )
-
-    if (loaderRef.current) observer.observe(loaderRef.current)
-    return () => observer.disconnect()
-  }, [loadImages])
 
   return (
     <>
-      {/* 顺序切换 */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
+      <div style={{ textAlign: 'center', marginBottom: 12 }}>
         <button onClick={() => setOrder('desc')}>最新</button>
         <button onClick={() => setOrder('asc')}>最早</button>
       </div>
 
-      {/* 图片网格 */}
       <div
         onContextMenu={e => e.preventDefault()}
         style={{
@@ -158,13 +134,10 @@ export default function Gallery() {
         }}
       >
         {images.map((src, i) => (
-          <div key={i} style={{ borderRadius: 14, overflow: 'hidden' }}>
+          <div key={i} style={{ borderRadius: 12, overflow: 'hidden' }}>
             <CanvasImage src={src} />
           </div>
         ))}
-
-        {loading && Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} />)}
-        <div ref={loaderRef} style={{ height: 1 }} />
       </div>
     </>
   )
