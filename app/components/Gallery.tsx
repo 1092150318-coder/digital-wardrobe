@@ -7,13 +7,24 @@ const WATERMARK_TEXT = '风居住的街道 · 数字衣柜'
 const FIRST_SCREEN_COUNT = 24
 const SCROLL_KEY = 'gallery-scroll-top'
 
-/* ================= 工具：缩略图（不裁） ================= */
+/* ================= 工具：缩略图（DPR-aware · 稳定版） ================= */
 function getThumb(url: string) {
+  if (typeof window === 'undefined') return url
+
+  // 👉 DPR 最高只取 2，保证 Supabase render 稳定
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+
+  // 👉 单列下图片真实展示宽度大约在 160~200px
+  // 我们直接用 240 作为基准，再乘 DPR
+  const baseWidth = 240
+  const realWidth = Math.round(baseWidth * dpr)
+
   return (
     url.replace(
       '/storage/v1/object/public/',
       '/storage/v1/render/image/public/'
-    ) + '?width=480&quality=60&resize=contain'
+    ) +
+    `?width=${realWidth}&quality=70&resize=contain`
   )
 }
 
@@ -100,7 +111,7 @@ function ImageModal({
   )
 }
 
-/* ================= 读取 bucket（⚠️ 不改，稳定版） ================= */
+/* ================= 读取 bucket（稳定版，不改） ================= */
 async function listImages(client: any, bucket: string) {
   const results: { url: string; time: number }[] = []
   let offset = 0
@@ -211,8 +222,7 @@ export default function Gallery() {
         style={{
           padding: 12,
           display: 'grid',
-          gridTemplateColumns:
-            'repeat(auto-fill, minmax(140px, 1fr))', // ✅ 手机 2×2
+          gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
           gap: 10,
         }}
       >
