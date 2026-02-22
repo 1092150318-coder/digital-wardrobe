@@ -61,6 +61,3 @@ export async function GET() {
     return NextResponse.json([], { status: 500 })
   }
 }
-console.log("ACCOUNT:", process.env.R2_ACCOUNT_ID)
-console.log("BUCKET:", process.env.R2_BUCKET_NAME)
-console.log("DOMAIN:", process.env.NEXT_PUBLIC_R2_DOMAIN)
