@@ -27,27 +27,42 @@ function WatermarkCanvas({ thumbSrc, rawSrc }: { thumbSrc: string; rawSrc: strin
 
     const draw = (img: HTMLImageElement, isThumb: boolean) => {
       if (isCancelled) return
+      
+      // 1. 计算逻辑显示尺寸（CSS像素）
       const maxW = window.innerWidth * 0.95
       const maxH = window.innerHeight * 0.95
       const scale = Math.min(maxW / img.width, maxH / img.height, 1)
 
-      const w = img.width * scale
-      const h = img.height * scale
+      const cssW = img.width * scale
+      const cssH = img.height * scale
 
-      canvas.width = w
-      canvas.height = h
+      // 2. 获取设备像素比 (Retina 高清屏适配核心)
+      const dpr = window.devicePixelRatio || 1
+
+      // 3. 设置 Canvas 的物理分辨率（放大 dpr 倍保证清晰度）
+      canvas.width = cssW * dpr
+      canvas.height = cssH * dpr
       
+      // 4. 强制设置 CSS 尺寸，防止 Canvas 在屏幕上变得巨大
+      canvas.style.width = `${cssW}px`
+      canvas.style.height = `${cssH}px`
+      
+      // 5. 放大画笔上下文，后续坐标均按逻辑像素 (cssW/cssH) 绘制
+      ctx.scale(dpr, dpr)
+
+      // 绘制图片
       ctx.save()
       ctx.filter = isThumb ? 'blur(8px)' : 'none'
-      ctx.drawImage(img, 0, 0, w, h)
+      ctx.drawImage(img, 0, 0, cssW, cssH)
       ctx.restore()
 
+      // 绘制水印
       ctx.save()
       ctx.rotate((-20 * Math.PI) / 180)
       ctx.font = '24px sans-serif'
       ctx.fillStyle = 'rgba(255,255,255,0.12)'
-      for (let y = -h; y < h * 2; y += 160) {
-        for (let x = -w; x < w * 2; x += 420) {
+      for (let y = -cssH; y < cssH * 2; y += 160) {
+        for (let x = -cssW; x < cssW * 2; x += 420) {
           ctx.fillText(WATERMARK_TEXT, x, y)
         }
       }
