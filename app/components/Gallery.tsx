@@ -73,12 +73,14 @@ function WatermarkCanvas({ thumbSrc, rawSrc }: { thumbSrc: string; rawSrc: strin
 
     const thumbImg = new Image()
     thumbImg.crossOrigin = 'anonymous'
-    thumbImg.src = thumbSrc
+    // ✅ 强制增加版本号，绕过 Cloudflare 错误缓存
+    thumbImg.src = `${thumbSrc}?v=999`
     thumbImg.onload = () => draw(thumbImg, true)
 
     const rawImg = new Image()
     rawImg.crossOrigin = 'anonymous'
-    rawImg.src = rawSrc
+    // ✅ 强制增加版本号，绕过 Cloudflare 错误缓存
+    rawImg.src = `${rawSrc}?v=999`
     rawImg.onload = () => draw(rawImg, false)
     
     rawImg.onerror = () => {
@@ -142,7 +144,9 @@ function ImageModal({
           preloadedUrls.current.add(url)
           const img = new Image()
           img.decoding = 'async'
-          img.src = url
+          // ✅ 预加载也要加跨域头和版本号，防止后台偷偷毒化缓存！
+          img.crossOrigin = 'anonymous'
+          img.src = `${url}?v=999`
         }
       }
     }
@@ -332,7 +336,9 @@ export default function Gallery() {
             }}
           >
             <img
-              src={img.thumbUrl}
+              // ✅ 强制增加版本号，绕过 Cloudflare 错误缓存
+              src={`${img.thumbUrl}?v=999`}
+              crossOrigin="anonymous" 
               loading={i < FIRST_SCREEN_COUNT ? 'eager' : 'lazy'}
               draggable={false}
               style={{
