@@ -42,8 +42,11 @@ export async function GET(
       headers: {
         'Content-Type':
           result.ContentType || getContentType(key),
+
         'Cache-Control':
           'public, max-age=86400, s-maxage=31536000',
+
+        'Access-Control-Allow-Origin': '*',
       },
     })
   } catch (error) {
