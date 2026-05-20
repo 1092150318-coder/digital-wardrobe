@@ -1,6 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-};
 
-export default nextConfig;
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'www.xn--pqqu92a7purjq99ibym.top',
+      },
+    ],
+  },
+}
+
+export default nextConfig
