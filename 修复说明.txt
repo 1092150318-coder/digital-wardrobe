@@ -1,0 +1,19 @@
+这版修复点：
+
+1. app/api/images/route.ts
+   - 不再输出 https://img.xn--pqqu92a7purjq99ibym.top/...
+   - 如果 Vercel 环境变量里还残留旧 img 域名，也会自动改走当前站点 /api/r2
+
+2. app/api/r2/[...key]/route.ts
+   - 新增 R2 图片代理路由
+   - 图片会通过 https://你的站点/api/r2/thumb/xxx.webp 读取
+
+3. .env.local
+   - NEXT_PUBLIC_R2_DOMAIN 已改成 https://www.xn--pqqu92a7purjq99ibym.top/api/r2
+
+4. next.config.js / next.config.mjs
+   - 加入图片来源白名单，避免 Next/Image 后续拦截。
+
+部署后请在 Vercel 重新 Redeploy。
+如果 Vercel Environment Variables 里 NEXT_PUBLIC_R2_DOMAIN 还是旧 img，也建议删掉重建为：
+https://www.xn--pqqu92a7purjq99ibym.top/api/r2
